@@ -1,16 +1,30 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let running=false,starting=false,phase='hold',deadline=0,raf=0,audio=null,wake=null,generation=0,beeps=[];
-function tone(frequency,at,duration=.18){const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.3,at+.015);gain.gain.setValueAtTime(.3,at+duration-.04);gain.gain.linearRampToValueAtTime(0,at+duration);oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(at);oscillator.stop(at+duration);beeps.push(oscillator);oscillator.onended=()=>{beeps=beeps.filter(x=>x!==oscillator);oscillator.disconnect();gain.disconnect();};}
-function cue(kind){const t=audio.currentTime+.015;if(kind==='hold')tone(880,t,.24);else{tone(440,t);tone(440,t+.25);}}
-async function unlock(){try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch{}if(!audio)audio=new (window.AudioContext||window.webkitAudioContext)();if(audio.state!=='running')await audio.resume();if(audio.state!=='running')throw Error('Audio unavailable');}
+let running=false,starting=false,phase='hold',raf=0,audio=null,wake=null,generation=0;
+const cycleAudio=new Audio('./cycle.wav'),testAudio=new Audio('./test.wav');
+cycleAudio.loop=true;cycleAudio.preload='auto';testAudio.preload='auto';
+async function unlock(kind='cycle'){
+ audio=kind==='cycle'?cycleAudio:testAudio;
+ cycleAudio.pause();testAudio.pause();audio.currentTime=0;
+ try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch{}
+ await audio.play();
+}
 function render(seconds,fraction){$('count').textContent=seconds;$('progress').style.strokeDashoffset=873.363*(1-fraction);$('phase').textContent=running?(phase==='hold'?'Hold':'Rest'):'Ready';document.body.classList.toggle('rest',running&&phase==='rest');$('toggle').textContent=running?'Stop':'Start';$('test').disabled=running||starting;$('hint').textContent=running?(phase==='hold'?'Hold until the next sound.':'Release. The next hold starts soon.'):'Start when you’re ready.';}
 async function keepAwake(){if(!('wakeLock'in navigator)){if(running)$('notice').textContent='Keep your screen awake using your phone’s Auto-Lock setting.';return;}try{const lock=await navigator.wakeLock.request('screen');if(!running){await lock.release();return;}wake=lock;lock.addEventListener('release',()=>{if(wake===lock)wake=null;if(running&&document.visibilityState==='visible')$('notice').textContent='Screen may dim. Check your Auto-Lock setting.';});}catch{if(running)$('notice').textContent='Screen may dim. Check your Auto-Lock setting.';}}
-function stop(message=''){generation++;running=false;starting=false;cancelAnimationFrame(raf);beeps.slice().forEach(o=>{try{o.stop();}catch{}});if(wake){const old=wake;wake=null;old.release().catch(()=>{});}render(10,1);$('toggle').disabled=false;$('notice').textContent=message;}
-function tick(now){if(!running)return;if(now>=deadline){if(now-deadline>700){stop('Timer interrupted. Tap Start to begin again.');return;}phase=phase==='hold'?'rest':'hold';deadline+=phase==='hold'?10000:2000;cue(phase);}const left=Math.max(0,deadline-now),duration=phase==='hold'?10000:2000;render(Math.ceil(left/1000),left/duration);raf=requestAnimationFrame(tick);}
-$('toggle').addEventListener('click',async()=>{if(running){stop();return;}if(starting)return;starting=true;const current=++generation;$('toggle').disabled=true;$('test').disabled=true;try{await unlock();if(current!==generation||document.visibilityState!=='visible')return;running=true;starting=false;phase='hold';deadline=performance.now()+10000;$('notice').textContent='';cue('hold');render(10,1);$('toggle').disabled=false;keepAwake();raf=requestAnimationFrame(tick);}catch{stop('Sound could not start. Tap Start to try again.');}});
-$('test').addEventListener('click',async()=>{if(running||starting)return;const current=++generation;$('test').disabled=true;try{await unlock();if(current!==generation)return;cue('hold');tone(440,audio.currentTime+.8);tone(440,audio.currentTime+1.05);$('notice').textContent='High tone: hold. Two low tones: rest.';}catch{$('notice').textContent='Sound could not play. Check your volume and try again.';}finally{if(!running&&!starting)$('test').disabled=false;}});
+function stop(message=''){generation++;running=false;starting=false;cancelAnimationFrame(raf);cycleAudio.pause();testAudio.pause();cycleAudio.currentTime=0;testAudio.currentTime=0;if(wake){const old=wake;wake=null;old.release().catch(()=>{});}render(10,1);$('toggle').disabled=false;$('notice').textContent=message;}
+function tick(now){
+ if(!running)return;
+ if(cycleAudio.paused||cycleAudio.ended){stop('Audio interrupted. Tap Start to begin again.');return;}
+ const position=cycleAudio.currentTime%12;
+ phase=position<10?'hold':'rest';
+ const left=phase==='hold'?10-position:12-position;
+ render(Math.ceil(left),left/(phase==='hold'?10:2));
+ raf=requestAnimationFrame(tick);
+}
+$('toggle').addEventListener('click',async()=>{if(running){stop();return;}if(starting)return;starting=true;const current=++generation;$('toggle').disabled=true;$('test').disabled=true;try{await unlock();if(current!==generation||document.visibilityState!=='visible'){cycleAudio.pause();return;}running=true;starting=false;phase='hold';$('notice').textContent='';render(10,1);$('toggle').disabled=false;keepAwake();raf=requestAnimationFrame(tick);}catch{stop('Sound could not start. Tap Start to try again.');}});
+$('test').addEventListener('click',async()=>{if(running||starting)return;const current=++generation;$('test').disabled=true;try{await unlock('test');if(current!==generation){testAudio.pause();return;}$('notice').textContent='High tone: hold. Two low tones: rest.';}catch{$('notice').textContent='Sound could not play. Check your volume and try again.';}finally{if(!running&&!starting)$('test').disabled=false;}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(running||starting))stop('Timer stopped while away. Tap Start to begin again.');});
 window.addEventListener('pagehide',()=>stop());
+cycleAudio.addEventListener('error',()=>{if(running||starting)stop('Sound could not load. Connect to the internet and reopen the timer.');});
 render(10,1);
 if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').then(async registration=>{await navigator.serviceWorker.ready;$('offline').textContent='Ready for offline use on this device.';registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller&&!running)$('offline').textContent='An update is ready. Close and reopen the app to use it.';});});}).catch(()=>{$('offline').textContent='Offline access is unavailable. Open this app with an internet connection.';});}else $('offline').textContent='Open this app with an internet connection.';
