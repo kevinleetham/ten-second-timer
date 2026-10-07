@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ten Second Timer</title><meta name="description" content="A repeating 10-second hold and 2-second rest timer with sound cues.">
+<meta name="theme-color" content="#101c2d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Ten Second Timer"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./style.css?v=3">
+</head>
+<body>
+<main>
+ <header><span class="brand">TEN SECOND TIMER</span><span class="pattern">10s hold · 2s rest</span></header>
+ <section class="timer" aria-label="Interval timer">
+  <p id="phase" aria-live="polite">Ready</p>
+  <div class="dial"><svg viewBox="0 0 300 300" aria-hidden="true"><circle class="track" cx="150" cy="150" r="139"/><circle id="progress" cx="150" cy="150" r="139"/></svg><div class="digits"><span id="count">10</span><span class="unit">SECONDS</span></div></div>
+  <p id="hint">Start when you’re ready.</p>
+ </section>
+ <div class="controls"><button id="toggle" class="primary" type="button">Start</button><button id="test" class="secondary" type="button">Test sound</button></div>
+ <p id="notice" role="status"></p>
+ <details><summary>Add to your iPhone</summary><p>Open this page in Safari, tap Share, then Add to Home Screen. Turn on “Open as Web App” if shown, then tap Add.</p><p>Keep this app open while exercising. Start plays a high tone; rest plays two lower tones. Check your phone’s volume before starting.</p><p id="offline">Preparing offline access…</p></details>
+</main>
+<script src="./app.js"></script>
+</body></html>
